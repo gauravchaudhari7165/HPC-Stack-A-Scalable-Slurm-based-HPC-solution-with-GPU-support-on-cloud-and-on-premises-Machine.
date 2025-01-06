@@ -51,8 +51,7 @@ This project aims to deliver a robust, scalable, and cost-effective cloud-based 
 
 
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1ef4f8bd-244a-44a2-9c80-641134b2c572" alt="Blue Simple Process Flow">
+</p>
 
-
-![Blue Simple Process Flow](https://github.com/user-attachments/assets/1ef4f8bd-244a-44a2-9c80-641134b2c572)
-
- 
