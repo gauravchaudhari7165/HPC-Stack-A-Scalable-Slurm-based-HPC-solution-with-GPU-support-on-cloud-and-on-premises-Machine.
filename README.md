@@ -45,7 +45,6 @@ Configure AWS VPC with subnet isolation, routing, and security group policies.
 Enforce secure communication between components and implement robust access control measures.
 
 
-Data Flow Diagram
-![Alt text]([https://example.com/path/to/image.png](https://ibb.co/gP85kRg)
+
 
  
