@@ -46,5 +46,6 @@ Enforce secure communication between components and implement robust access cont
 
 
 
+![Blue Simple Process Flow](https://github.com/user-attachments/assets/1ef4f8bd-244a-44a2-9c80-641134b2c572)
 
  
