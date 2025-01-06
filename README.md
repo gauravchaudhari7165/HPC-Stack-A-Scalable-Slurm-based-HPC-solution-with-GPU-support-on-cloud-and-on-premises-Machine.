@@ -46,6 +46,6 @@ Enforce secure communication between components and implement robust access cont
 
 
 Data Flow Diagram
-![Alt text]([image link](https://ibb.co/gP85kRg))
+![Alt text]([https://example.com/path/to/image.png](https://ibb.co/gP85kRg)
 
  
