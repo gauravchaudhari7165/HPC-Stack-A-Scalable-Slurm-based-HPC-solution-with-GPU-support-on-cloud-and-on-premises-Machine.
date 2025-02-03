@@ -1,6 +1,6 @@
-# Cloud-Based-HPC-Cluster-Using-Slurm-Docker-Containerization
+# Cloud-Based-HPC-Cluster-Using-Slurm-Docker-Containerization.
 
-## Project Synopsis: HPC Stack Cloud-Based HPC Cluster
+## Project Synopsis: HPC Stack Cloud-Based HPC Cluster.
 
 ### Introduction
 This project aims to design and implement a scalable, portable, and cost-effective High-Performance Computing (HPC) cluster using Docker containerization of Slurm on a cloud-based infrastructure. By leveraging AWS services and integrating Grafana for monitoring, the project delivers an efficient solution for real-time resource management and analytics.
