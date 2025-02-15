@@ -135,6 +135,13 @@ ssh -i Bastion.pem ubuntu@13.232.198.24
 ```bash
 ssh -i Controller.pem ubuntu@10.0.1.211
 ```
+![Access Controller from Bastion](https://github.com/user-attachments/assets/7fb12fb6-3f27-498c-8ff2-2fc9a6f45396)
+
+- Secure access to the controller node is only allowed through the Bastion Host to prevent direct exposure.
+
+#### Checking Internet Access on Private Subnet's Controller to Install Slurm
+
+![Checking Internet on Private Node](https://github.com/user-attachments/assets/192686d2-8a3d-432f-ac9d-2199bbead138)
 
 # Automating above manual infrastructure using terraform
 ## Creating IAM User with Administrator Access
@@ -362,10 +369,3 @@ ssh -i controller-key.pem ubuntu@13.233.71.90
 - Check that your instance is running and has a public IP address
 
 
-![Access Controller from Bastion](https://github.com/user-attachments/assets/7fb12fb6-3f27-498c-8ff2-2fc9a6f45396)
-
-- Secure access to the controller node is only allowed through the Bastion Host to prevent direct exposure.
-
-#### Checking Internet Access on Private Subnet's Controller to Install Slurm
-
-![Checking Internet on Private Node](https://github.com/user-attachments/assets/192686d2-8a3d-432f-ac9d-2199bbead138)
