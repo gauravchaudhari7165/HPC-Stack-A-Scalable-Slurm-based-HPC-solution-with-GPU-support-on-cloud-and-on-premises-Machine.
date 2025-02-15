@@ -362,10 +362,254 @@ ssh -i controller-key.pem ubuntu@13.233.71.90
 
 **Note:** Replace 'your-key-name.pem' with your actual key file name and 'your-instance-public-ip' with your EC2 instance's public IP address.
 
-### Troubleshooting Tips:
+## Terraform Configuration for Compute Nodes
 
-- If connection fails, verify that your security group allows inbound SSH (port 22)
-- Ensure you're using the correct username (usually 'ubuntu' for Ubuntu AMIs)
-- Check that your instance is running and has a public IP address
+```jsx
+terraform {
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0.1"
+    }
+  }
+}
 
+provider "docker" {}
 
+# Create a Docker network for SLURM communication
+resource "docker_network" "slurm_network" {
+  name = "slurm_network"
+}
+
+# Pull Ubuntu Docker image
+resource "docker_image" "ubuntu" {
+  name         = "ubuntu:latest"
+  keep_locally = false
+}
+
+# Compute Node 1
+resource "docker_container" "compute1" {
+  name  = "compute1"
+  image = docker_image.ubuntu.name
+  networks_advanced {
+    name = docker_network.slurm_network.name
+  }
+  hostname = "compute1"
+
+  # Configure SSH and enable root login
+  command = [
+    "bash", "-c",
+    "apt-get update && apt-get install -y openssh-server && echo 'root:root' | chpasswd && echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && mkdir -p /run/sshd && /usr/sbin/sshd -D"
+  ]
+
+  ports {
+    internal = 22
+    external = 2222
+  }
+}
+
+# Compute Node 2
+resource "docker_container" "compute2" {
+  name  = "compute2"
+  image = docker_image.ubuntu.name
+  networks_advanced {
+    name = docker_network.slurm_network.name
+  }
+  hostname = "compute2"
+
+  # Configure SSH and enable root login
+  command = [
+    "bash", "-c",
+    "apt-get update && apt-get install -y openssh-server && echo 'root:root' | chpasswd && echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && mkdir -p /run/sshd && /usr/sbin/sshd -D"
+  ]
+
+  ports {
+    internal = 22
+    external = 2223
+  }
+}
+```
+
+### Key Components:
+
+- **Docker Provider:** Sets up Docker provider for container management
+- **Network Creation:** Creates a dedicated network for SLURM communication
+- **Compute Nodes:** Deploys two Ubuntu-based containers with SSH access
+- **Port Mapping:** Maps container ports to host system for SSH access
+
+**Note:** Ensure Docker is installed and running on the local system before applying this configuration.
+
+## Accessing Compute Nodes in Containers
+
+To access the compute nodes running in Docker containers, use these SSH commands:
+
+```bash
+# Access compute node 1
+ssh root@localhost -p 2222
+
+# Access compute node 2
+ssh root@localhost -p 2223
+```
+
+Default credentials:
+
+- **Username:** root
+- **Password:** root
+
+Alternative method using Docker commands:
+
+```bash
+# Direct access to compute node 1
+docker exec -it compute1 bash
+
+# Direct access to compute node 2
+docker exec -it compute2 bash
+```
+
+**Note:** Make sure the containers are running before attempting to connect. You can check their status with:
+
+```bash
+docker ps
+```
+
+## Installing NVIDIA Docker Toolkit
+
+Follow these steps to install NVIDIA Docker Toolkit and enable GPU support in containers:
+
+1. Add NVIDIA package repositories:
+`distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list`
+2. Update package list and install NVIDIA Docker Toolkit:
+`sudo apt-get update
+sudo apt-get install -y nvidia-docker2`
+3. Restart Docker daemon:
+`sudo systemctl restart docker`
+
+To use NVIDIA GPUs in your containers, modify your Docker container configuration:
+
+```jsx
+resource "docker_container" "compute1" {
+  # ... existing configuration ...
+  
+  runtime = "nvidia"
+  
+  devices {
+    name = "nvidia.com/gpu=all"
+  }
+  
+  env = [
+    "NVIDIA_VISIBLE_DEVICES=all",
+    "NVIDIA_DRIVER_CAPABILITIES=compute,utility"
+  ]
+}
+```
+
+**Note:** Ensure NVIDIA drivers are properly installed on the host system before attempting to use GPUs in containers.
+
+To verify GPU access, you can run:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:11.0-base nvidia-smi
+```
+
+## Generating SSH Keys on Local Machine
+
+Follow these steps to generate SSH keys on your local machine:
+
+1. Open a terminal on your local machine
+2. Run the command: `ssh-keygen -t rsa -b 4096`
+3. When prompted, press Enter to accept the default file location (~/.ssh/id_rsa)
+4. Optionally enter a passphrase when prompted (recommended for security)
+5. The system will generate two files: 
+    - id_rsa (private key)
+    - id_rsa.pub (public key)
+6. View your public key with: `cat ~/.ssh/id_rsa.pub`
+
+**Important:** Keep your private key secure and never share it. The public key can be shared and added to remote systems for authentication.
+
+## Reverse SSH Port Forwarding
+
+To establish a reverse SSH tunnel for remote access, use the following command:
+
+```bash
+ssh -R 22:localhost:22 -R 6818:localhost:6818 -R 7003:localhost:7003 ubuntu@13.233.71.90
+```
+
+This command creates three reverse tunnels:
+
+- **Port 22:** For SSH access (localhost:22 → remote:22)
+- **Port 6818:** For SLURM communication (localhost:6818 → remote:6818)
+- **Port 7003:** For additional services (localhost:7003 → remote:7003)
+
+**Note:** Ensure the ports are open in your security groups and firewall settings on both ends.
+
+To make the connection more stable, you can add these SSH options:
+
+```bash
+ssh -R 22:localhost:22 -R 6818:localhost:6818 -R 7003:localhost:7003 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@13.233.71.90
+```
+
+## SSH Configuration for Easy Access
+
+Create or edit your SSH config file to simplify connections:
+
+### 1. Controller Configuration
+
+```bash
+nano ~/.ssh/config
+
+Host controller
+    HostName 13.233.71.90
+    User ubuntu
+    IdentityFile ~/controller-key.pem
+```
+
+### 2. Compute Nodes Configuration
+
+```bash
+nano ~/.ssh/config
+Host compute1
+    HostName localhost
+    User root
+    Port 2222
+
+Host compute2
+    HostName localhost
+    User root
+    Port 2223
+```
+
+After setting up this configuration, you can simply use:
+
+- `ssh controller` - to connect to the controller node
+- `ssh compute1` - to connect to compute node 1
+- `ssh compute2` - to connect to compute node 2
+
+**Note:** Make sure to set appropriate permissions on your SSH config file with: `chmod 600 ~/.ssh/config`
+
+## Host File Configuration
+
+Add the following entries to the host files on different nodes:
+
+### On Controller Node:
+
+```bash
+echo "127.0.0.1 compute1" | sudo tee -a /etc/hosts
+echo "127.0.0.1 compute2" | sudo tee -a /etc/hosts
+```
+
+### On Controller and Compute Nodes:
+
+```bash
+echo "3.109.2.160 controller" | sudo tee -a /etc/hosts
+```
+
+### On Compute Nodes:
+
+```bash
+echo "172.21.0.2 compute1" | tee -a /etc/hosts
+echo "172.21.0.3 compute2" | tee -a /etc/hosts
+```
+
+**Note:** These host entries enable proper name resolution between the controller and compute nodes in the cluster.
