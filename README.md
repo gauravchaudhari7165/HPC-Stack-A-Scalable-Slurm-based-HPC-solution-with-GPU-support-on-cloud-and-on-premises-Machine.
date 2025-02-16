@@ -733,3 +733,266 @@ echo "172.21.0.3 compute2" | tee -a /etc/hosts
 
 ---
 
+# Installing SLURM on the Cluster
+
+Follow these steps to install and configure SLURM on your controller and compute nodes:
+
+## **Common steps for controller and compute**
+
+1. **Download SLURM:**
+Use wget to download SLURM package:
+`wget https://download.schedmd.com/slurm/slurm-21.08.8.tar.bz2`
+2. **Install Required Dependencies:**
+Install necessary libraries and build tools:
+`sudo apt install -y build-essential munge libmunge-dev libmunge2 libmysqlclient-dev libssl-dev libpam0g-dev libnuma-dev perl`
+3. **Extract and Configure SLURM:**
+`tar -xvjf slurm-21.08.8.tar.bz2
+cd slurm-21.08.8
+./configure --prefix=/root/slurm-21.08.8/`
+4. **Compile and Install:**
+`make
+make install`
+5. **Create Required Directories:**
+`sudo mkdir /etc/slurm
+sudo mkdir /etc/slurm-llnl`
+
+## Controller Node Specific Steps
+
+1. **Create and Configure Munge Key:**
+`sudo create-munge-key
+sudo chown munge: /etc/munge/munge.key
+chmod 400 /etc/munge/munge.key`
+2. **Alternative: Create Munge Key Manually:**
+`sudo dd if=/dev/urandom bs=1 count=1024 of=/etc/munge/munge.key
+sudo chmod 400 /etc/munge/munge.key
+sudo chown munge:munge /etc/munge/munge.key`
+3. **Copy Munge Key to Compute Nodes:**
+`sudo scp -r /etc/munge/munge.key root@compute1:/tmp
+sudo scp -r /etc/munge/munge.key root@compute2:/tmp`
+4. **Set Munge Permissions and Start Service:**
+`sudo chown -R munge: /etc/munge /var/log/munge
+sudo chmod 0700 /etc/munge /var/log/munge
+sudo systemctl enable munge
+sudo systemctl start munge
+sudo systemctl status munge`
+5. **Configure SLURM:**
+`cd /root/slurm-21.08.8/etc
+cp slurm.conf.example slurm.conf`
+6. **Edit SLURM Configuration:**
+Edit slurm.conf with the following content:
+`ClusterName=cluster
+SlurmctldHost=controller
+AuthType=auth/munge
+SlurmUser=root
+AccountingStorageType=accounting_storage/slurmdbd
+NodeName=controller CPUs=1 State=UNKNOWN 
+NodeName=compute1 CPUs=1 State=UNKNOWN
+NodeName=compute2 CPUs=1 State=UNKNOWN
+PartitionName=partition Nodes=ALL Default=YES MaxTime=INFINITE State=up 
+MailProg=/usr/bin/mail`
+7. **Edit SLURM Configuration:**
+Edit slurm.conf with the following content:
+`ClusterName=cluster
+SlurmctldHost=controller
+AuthType=auth/munge
+SlurmUser=root
+AccountingStorageType=accounting_storage/slurmdbd
+NodeName=controller CPUs=1 State=UNKNOWN 
+NodeName=compute1 CPUs=1 State=UNKNOWN
+NodeName=compute2 CPUs=1 State=UNKNOWN
+PartitionName=partition Nodes=ALL Default=YES MaxTime=INFINITE State=up 
+MailProg=/usr/bin/mail`
+8. **Install mailutils:**
+`sudo apt-get install mailutils`
+9. **Configure cgroup:**
+`cd /root/slurm-21.08.8/etc
+cp cgroup.conf.example cgroup.conf`
+`scp cgroup.conf root@compute1:/tmp
+scp cgroup.conf root@compute2:/tmp`
+10. **Copy SLURM Configuration:**
+`sudo cp slurm.conf /etc/slurm
+sudo cp slurm.conf /etc/slurm-llnl
+scp slurm.conf root@compute1:/tmp
+scp slurm.conf root@compute2:/tmp`
+11. **Configure SLURM Database:**
+Create and edit slurmdbd.conf with:
+`AuthType=auth/munge
+DbdAddr=192.168.82.223
+DbdHost=controller
+SlurmUser=root
+DebugLevel=verbose
+LogFile=/var/log/slurm/slurmdbd.log
+PidFile=/var/run/slurmdbd.pid
+StorageType=accounting_storage/mysql
+StoragePass=root
+StorageUser=root`
+12. **Install and Configure MariaDB:**
+`apt-get install mariadb-server
+sudo systemctl start mysql
+sudo systemctl enable mysql`
+13. **Configure MySQL Users:**
+`sudo mysql -u root`
+Then run:
+`CREATE USER 'root'@'controller' identified by 'root';
+CREATE USER 'root'@'localhost' identified by 'root';
+CREATE USER 'root'@'%' identified by 'root';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'controller';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%';`
+14. **Setup Service Files:**
+`sudo cp slurmctld.service /etc/systemd/system/
+sudo cp slurmd.service /etc/systemd/system/
+sudo cp slurmdbd.service /etc/systemd/system/
+sudo mkdir /var/spool/slurmctld`
+15. **Configure Environment:**
+Add to /etc/bash.bashrc:
+`export PATH="/root/slurm-21.08.8/bin/:$PATH"
+export PATH="/root/slurm-21.08.8/sbin/:$PATH"
+export LD_LIBRARY_PATH="/root/slurm-21.08.8/lib/:$LD_LIBRARY_PATH"`
+16. **Start and Enable Services:**
+`sudo systemctl restart munge
+sudo systemctl restart slurmd
+sudo systemctl restart slurmctld
+sudo systemctl restart slurmdbd
+sudo systemctl enable munge
+sudo systemctl enable slurmd
+sudo systemctl enable slurmctld
+sudo systemctl enable slurmdbd`
+
+## Compute Node Specific Steps
+
+1. **Copy Munge Key from /tmp:**
+`cp -r /tmp/munge.key /etc/munge/
+chown -R munge: /etc/munge /var/log/munge
+chmod 0700 /etc/munge /var/log/munge
+systemctl enable munge
+systemctl start munge
+systemctl status munge`
+2. **Copy SLURM Configuration:**
+`cp -r /tmp/slurm.conf /home/compute1/slurm-21.08.8/etc/
+cp -r /tmp/slurm.conf /home/compute2/slurm-21.08.8/etc/
+mkdir /etc/slurm
+cp -r /tmp/slurm.conf /etc/slurm/
+mkdir /etc/slurm-llnl
+cp -r /tmp/slurm.conf /etc/slurm-llnl/`
+3. **Copy cgroup Configuration:**
+`cp -r /tmp/cgroup.conf /etc/slurm/
+cp -r /tmp/cgroup.conf /etc/slurm-llnl/`
+4. **Disable Firewall:**
+`systemctl stop ufw
+iptables -F`
+5. **Setup Service Files:**
+`cp slurmd.service /etc/systemd/system`
+6. **Configure cgroup:**
+`cp /tmp/cgroup.conf .`
+7. **Start and Enable Services:**
+`sudo systemctl start munge
+sudo systemctl start slurmd
+sudo systemctl enable munge
+sudo systemctl enable slurmd`
+
+# Installing and Running Streamlit Applications with SLURM
+
+## 1. Install Python and Streamlit
+
+1. **Install Python and pip:**
+`sudo apt update
+sudo apt install python3 python3-pip`
+2. **Install Streamlit:**
+`pip3 install streamlit`
+
+## 2. Create a Sample Streamlit Application
+
+1. **Create a Python script** (e.g., [app.py](http://app.py)):
+    
+    ```python
+    import streamlit as st
+    import time
+    
+    st.title('SLURM Job Example')
+    st.write('Processing data...')
+    
+    # Simulate some work
+    for i in range(10):
+        st.write(f'Processing step {i+1}')
+        time.sleep(1)
+    
+    st.success('Job completed successfully!')
+    ```
+    
+
+## 3. Create SLURM Job Script
+
+1. **Create a submission script** (e.g., run_streamlit.sh):
+    
+    ```bash
+    #!/bin/bash
+    #SBATCH --job-name=streamlit_app
+    #SBATCH --output=streamlit_%j.out
+    #SBATCH --error=streamlit_%j.err
+    #SBATCH --nodes=1
+    #SBATCH --ntasks=1
+    
+    # Load Python environment if needed
+    streamlit run app.py --server.port 8501
+    ```
+    
+
+## 4. Submit and Monitor the Job
+
+1. **Submit the job to SLURM:**
+`sbatch run_streamlit.sh`
+2. **Check job status:**
+`squeue`
+3. **View output logs:**
+`cat streamlit_*.out`
+
+## 5. Accessing the Streamlit Application
+
+To access the Streamlit application:
+
+- Use SSH port forwarding to access the application from your local machine:
+`ssh -L 8501:localhost:8501 username@controller`
+- Open your web browser and navigate to: `http://localhost:8501`
+
+**Note:** Make sure to adjust the port numbers and hostnames according to your specific setup. Also ensure that necessary firewall rules are configured to allow the connection.
+
+## 6. Example Python Job with Output
+
+1. **Create a simple Python script** ([example.py](http://example.py)):
+    
+    ```python
+    import numpy as np
+    import pandas as pd
+    
+    # Create sample data
+    data = np.random.randn(1000, 4)
+    df = pd.DataFrame(data, columns=['A', 'B', 'C', 'D'])
+    
+    # Perform calculations
+    result = df.describe()
+    print("Data Analysis Results:")
+    print(result)
+    ```
+    
+2. **Create SLURM submission script** (submit_python.sh):
+    
+    ```bash
+    #!/bin/bash
+    #SBATCH --job-name=python_analysis
+    #SBATCH --output=analysis_%j.out
+    #SBATCH --error=analysis_%j.err
+    #SBATCH --nodes=1
+    #SBATCH --ntasks=1
+    
+    python3 example.py
+    ```
+    
+3. **Submit and monitor:**
+`sbatch submit_python.sh
+squeue
+cat analysis_*.out`
+
+**Important:** Always check the job output and error files for debugging purposes and to ensure the application is running as expected.
+
+
