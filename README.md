@@ -613,3 +613,123 @@ echo "172.21.0.3 compute2" | tee -a /etc/hosts
 ```
 
 **Note:** These host entries enable proper name resolution between the controller and compute nodes in the cluster.
+
+
+# Prometheus and Grafana Setup for Cluster Monitoring
+
+## Prometheus Setup
+
+### 1. Install Prometheus
+- Download and install Prometheus on the controller node or a dedicated monitoring server.
+- Use the following commands to install Prometheus on an Ubuntu-based system:
+  
+  ```bash
+  wget https://github.com/prometheus/prometheus/releases/download/v2.30.3/prometheus-2.30.3.linux-amd64.tar.gz
+  tar xvfz prometheus-2.30.3.linux-amd64.tar.gz
+  cd prometheus-2.30.3.linux-amd64
+  ```
+
+### 2. Configure Prometheus
+- Edit the `prometheus.yml` configuration file to define the targets (nodes and containers) to monitor.
+- Example configuration:
+  
+  ```yaml
+  global:
+    scrape_interval: 15s
+
+  scrape_configs:
+    - job_name: 'ec2_instances'
+      static_configs:
+        - targets: ['<EC2_Instance_IP>:9100']
+
+    - job_name: 'containers'
+      static_configs:
+        - targets: ['<Container_IP>:9100']
+  ```
+- Replace `<EC2_Instance_IP>` and `<Container_IP>` with the actual IP addresses of your EC2 instances and containers.
+
+### 3. Start Prometheus
+- Start Prometheus with the following command:
+  
+  ```bash
+  ./prometheus --config.file=prometheus.yml
+  ```
+
+### 4. Install Node Exporter
+- Install the Node Exporter on each EC2 instance and container to collect system metrics.
+- Use the following commands to install Node Exporter:
+  
+  ```bash
+  wget https://github.com/prometheus/node_exporter/releases/download/v1.2.2/node_exporter-1.2.2.linux-amd64.tar.gz
+  tar xvfz node_exporter-1.2.2.linux-amd64.tar.gz
+  cd node_exporter-1.2.2.linux-amd64
+  ./node_exporter
+  ```
+
+---
+
+## Grafana Setup
+
+### 1. Install Grafana
+- Download and install Grafana on the same server as Prometheus or a separate monitoring server.
+- Use the following commands to install Grafana on an Ubuntu-based system:
+  
+  ```bash
+  sudo apt-get install -y adduser libfontconfig1
+  wget https://dl.grafana.com/oss/release/grafana_8.1.5_amd64.deb
+  sudo dpkg -i grafana_8.1.5_amd64.deb
+  sudo systemctl start grafana-server
+  sudo systemctl enable grafana-server
+  ```
+
+### 2. Access Grafana
+- Open a web browser and navigate to `http://<Grafana_Server_IP>:3000`.
+- Log in with the default username `admin` and password `admin`. Change the password after the first login.
+
+### 3. Add Prometheus as a Data Source
+- In Grafana, go to `Configuration` > `Data Sources`.
+- Click `Add data source` and select `Prometheus`.
+- Set the URL to `http://<Prometheus_Server_IP>:9090`.
+- Click `Save & Test` to ensure the connection is successful.
+
+### 4. Create Dashboards
+- Go to `Create` > `Dashboard` and add panels to visualize the metrics collected by Prometheus.
+- Use queries to display metrics such as CPU usage, memory usage, network traffic, and GPU utilization.
+- Example query for CPU usage:
+  
+  ```promql
+  100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)
+  ```
+
+---
+
+## Monitoring GPU Metrics
+
+### 1. Install NVIDIA DCGM Exporter
+- On GPU-enabled containers, install the NVIDIA DCGM Exporter to collect GPU metrics.
+- Use the following commands to install DCGM Exporter:
+  
+  ```bash
+  docker run -d --gpus all --rm -p 9400:9400 nvcr.io/nvidia/k8s/dcgm-exporter:2.1.4-2.6.11-ubuntu20.04
+  ```
+
+### 2. Configure Prometheus to Scrape GPU Metrics
+- Add a new job in `prometheus.yml` to scrape metrics from the DCGM Exporter.
+- Example configuration:
+  
+  ```yaml
+  - job_name: 'gpu_metrics'
+    static_configs:
+      - targets: ['<GPU_Container_IP>:9400']
+  ```
+
+### 3. Visualize GPU Metrics in Grafana
+- Create new panels in Grafana to display GPU metrics such as utilization, temperature, and memory usage.
+- Example query for GPU utilization:
+  
+  ```promql
+  nvidia_gpu_duty_cycle
+  ```
+
+---
+
