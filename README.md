@@ -381,6 +381,11 @@ resource "docker_network" "slurm_network" {
   name = "slurm_network"
 }
 
+# Create a Docker volume for SLURM data persistence
+resource "docker_volume" "slurm_data" {
+  name = "slurm_data"
+}
+
 # Pull Ubuntu Docker image
 resource "docker_image" "ubuntu" {
   name         = "ubuntu:latest"
@@ -395,6 +400,12 @@ resource "docker_container" "compute1" {
     name = docker_network.slurm_network.name
   }
   hostname = "compute1"
+
+  # Mount volume
+  volumes {
+    volume_name    = docker_volume.slurm_data.name
+    container_path = "/data"
+  }
 
   # Configure SSH and enable root login
   command = [
@@ -417,6 +428,12 @@ resource "docker_container" "compute2" {
   }
   hostname = "compute2"
 
+  # Mount volume
+  volumes {
+    volume_name    = docker_volume.slurm_data.name
+    container_path = "/data"
+  }
+
   # Configure SSH and enable root login
   command = [
     "bash", "-c",
@@ -428,6 +445,7 @@ resource "docker_container" "compute2" {
     external = 2223
   }
 }
+
 ```
 
 ### Key Components:
@@ -436,6 +454,7 @@ resource "docker_container" "compute2" {
 - **Network Creation:** Creates a dedicated network for SLURM communication
 - **Compute Nodes:** Deploys two Ubuntu-based containers with SSH access
 - **Port Mapping:** Maps container ports to host system for SSH access
+- **VOLUME** persistant storage
 
 **Note:** Ensure Docker is installed and running on the local system before applying this configuration.
 
